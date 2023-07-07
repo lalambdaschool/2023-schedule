@@ -1,0 +1,8 @@
+people = {person1, person2, person3, person4};
+courses = {course1, course2};
+
+marks = [| M, O
+         | N, M
+         | O, N
+         | O, O
+         |];
