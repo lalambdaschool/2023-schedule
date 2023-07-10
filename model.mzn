@@ -7,8 +7,9 @@ enum SCORES = {M, O, N}; % MUST, OK, NO
 
 enum people;
 enum courses;
-
 array[people, courses] of SCORES: marks;
+array[courses] of int: lengths;
+
 array[people] of var set of courses: people2courses;
 
 % a person MUSTed a course
@@ -38,9 +39,21 @@ array[people] of set of courses: people2oks = [{c | c in courses where marks[p, 
 var int: score;
 constraint score = sum([card(people2courses[p] ∩ people2oks[p]) | p in people]);
 
+% length of courses a person attends sums to 6
+
+constraint forall(p in people) (
+    sum([lengths[c] | c in people2courses[p]]) = 6
+);
+
+% each course has less than 20 and more than 5 participants
+
+constraint forall(c in courses) (
+    5 <= sum([1 | p in people where c in people2courses[p]]) /\ sum([1 | p in people where c in people2courses[p]]) <= 20
+);
+
 solve maximize score;
 
-output ["p2c: ", show(people2courses), "\n",
-        "p2m: ", show(people2musts), "\n",
+output ["assignment: " ++ show(people2courses[i]) ++ " | (" ++ show(people2musts[i]) ++ ")\n" | i in index_set(people2courses)] ++ [
         "p2n: ", show(people2nos), "\n",
+        "participants per course: ", show([sum([1 | p in people where c in people2courses[p]]) | c in courses]), "\n",
         "score: ", show(score)];
