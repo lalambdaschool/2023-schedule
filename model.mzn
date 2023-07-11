@@ -1,7 +1,7 @@
 % Input:
 % {participant -> course} = {MUST, OK, NO}
-% Goal: assign groups of participants to courses
-% satisfy all MUSTs and NOs, maximise OKs
+% Goal1: assign groups of participants to courses
+% satisfy all MUSTs, minimize NOs
 
 enum SCORES = {M, O, N}; % MUST, OK, NO
 
@@ -22,24 +22,18 @@ constraint forall(p in people) (
 );
 
 % a person NOed a course
-% they must not be assigned to this course
+% minimize such assignments
 
 array[people] of set of courses: people2nos = [{c | c in courses where marks[p, c] = N}| p in people];
 
-constraint forall(p in people) (
-    not (card(people2courses[p] ∩ people2nos[p]) > 0)
-);
+var int: negscore;
+constraint negscore = sum([card(people2courses[p] ∩ people2nos[p]) | p in people]);
 
 % a person OKed a course
-% and they are assigned to this course
-% => score++
 
 array[people] of set of courses: people2oks = [{c | c in courses where marks[p, c] = O}| p in people];
 
-var int: score;
-constraint score = sum([card(people2courses[p] ∩ people2oks[p]) | p in people]);
-
-% length of courses a person attends sums to 6
+% length of courses a person attends sums to 6 days
 
 constraint forall(p in people) (
     sum([lengths[c] | c in people2courses[p]]) = 6
@@ -51,8 +45,8 @@ constraint forall(c in courses) (
     5 <= sum([1 | p in people where c in people2courses[p]]) /\ sum([1 | p in people where c in people2courses[p]]) <= 20
 );
 
-solve maximize score;
+solve minimize negscore;
 
 output ["assignment: \(people2courses[i]) | (\(people2musts[i]))\n" | i in index_set(people2courses)] ++
        ["\(c): \(sum([1 | p in people where c in people2courses[p]]))\n" | c in courses] ++
-       ["score: \(score)"];
+       ["negscore: \(negscore)"];

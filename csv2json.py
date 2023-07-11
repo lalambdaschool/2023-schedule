@@ -12,7 +12,7 @@ def mkMark(s):
     elif s == '+':
         return 'O'
     else:
-        return 'O'
+        return 'N'
 
 # read CSV from stdin
 reader = csv.reader(sys.stdin)
