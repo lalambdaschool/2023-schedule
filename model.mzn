@@ -53,7 +53,6 @@ constraint forall(c in courses) (
 
 solve maximize score;
 
-output ["assignment: " ++ show(people2courses[i]) ++ " | (" ++ show(people2musts[i]) ++ ")\n" | i in index_set(people2courses)] ++ [
-        "p2n: ", show(people2nos), "\n",
-        "participants per course: ", show([sum([1 | p in people where c in people2courses[p]]) | c in courses]), "\n",
-        "score: ", show(score)];
+output ["assignment: \(people2courses[i]) | (\(people2musts[i]))\n" | i in index_set(people2courses)] ++
+       ["\(c): \(sum([1 | p in people where c in people2courses[p]]))\n" | c in courses] ++
+       ["score: \(score)"];
