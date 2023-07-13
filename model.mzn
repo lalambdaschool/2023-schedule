@@ -5,6 +5,8 @@
 % Subgoal2: minimize the number of people who NOed a course and can't not attend it
 % Subgoal3: advanced courses must follow intro courses
 
+include "globals.mzn";
+
 enum SCORES = {M, O, N}; % MUST, OK, NO
 int: MAX_HALLS = 5;
 int: DAYS = 6;
@@ -30,8 +32,12 @@ array[courses] of var days: course2start = [min({d | d in days where c in day2co
 % invert this to map start date -> courses
 array[days] of var set of courses: start2courses = [{c | c in courses where course2start[c] = d} | d in days];
 
-% build a DAG of courses
-% store as arrays of edges
+% all available educational trajectories
+% a trajectory is the set of courses one can take in sequence
+% for instance, if a course takes 6 days, a trajectory will only contain this one course
+% if a course takes 3 days, a trajectory will contain this course and another similar one
+
+% build a DAG of courses stored as adjacency matrix
 % c1->c2 if c2 can be attended directly after c1
 % that is, for dates d and d+1:
 %  - c1 is scheduled on d and not d+1 (a participant must attend course to completion)
@@ -39,26 +45,60 @@ array[days] of var set of courses: start2courses = [{c | c in courses where cour
 
 array[courses, courses] of var bool: trajectories;
 
-constraint forall (d1 in days) (
-    is_fixed(enum_next(days, d1)) ->
+constraint forall (d1 in days where d1 < max(days)) (
     let { days: d2 = enum_next(days, d1);
           var set of courses: c1 = day2courses[d1];
           var set of courses: c2 = day2courses[d2]; }
     in
         forall(c in c1) (
             forall(c_ in c2 where not (c in c2)) (
-                trajectories[c, c_] = true
+                c_ in start2courses[d2] -> trajectories[c, c_] = true
             )
         )
 );
 
+% build viable trajectories
+% the set of first courses for trajectories is given by start2courses[days[1]]
 
-% all available educational trajectories
-% a trajectory is the set of courses one can take in sequence
-% for instance, if a course takes 6 days, a trajectory will only contain this one course
-% if a course takes 3 days, a trajectory will contain this course and another similar one
+% int: maxTrajectories = 151200; % 10! / (10-6)!
+int: maxTrajectories = 10;
+array[1..maxTrajectories] of var set of courses: trajectories_materialized;
 
-% array[1..card(courses)^2] of var set of courses: trajectories;
+constraint forall (t in 1..maxTrajectories) (
+    exists(c1 in start2courses[days[1]]) ( % init course
+        if card(follows[c1]) = 0
+        then trajectories_materialized[t] = {c1}
+        else exists(c2 in follows[c1]) (
+            if card(follows[c2]) = 0
+            then trajectories_materialized[t] = {c1, c2}
+            else exists(c3 in follows[c2])(trajectories_materialized[t] = {c1, c2, c3})
+            endif
+        )
+        endif
+    )
+);
+
+constraint all_different(trajectories_materialized);
+
+% for all trajectories, length of courses in a trajectory sums to DAYS
+
+constraint forall (t in 1..maxTrajectories) (
+    sum([lengths[c] | c in trajectories_materialized[t]]) = DAYS
+);
+
+var bool: fail = exists (t in 1..maxTrajectories) (
+    trajectories_materialized[t] != {} ->
+        % a trajectory always starts on day 1
+        card(trajectories_materialized[t] intersect start2courses[days[1]]) = 0
+        \/
+        % a trajectory never contains two courses scheduled for the same day
+        exists (d in days) (
+            exists (c1, c2 in day2courses[d] where c1 != c2) (
+                trajectories_materialized[t] superset {c1, c2}
+            )
+        )
+);
+
 
 % follows relationship
 % course c2 follows c1 if it can be attended after c1
@@ -72,8 +112,7 @@ array[courses] of var set of courses: follows;
 %  if c in C2, skip (a participant must attend course to completion)
 %  else, add C2 to trajectories[c]
 
-constraint forall (d1 in days) (
-    is_fixed(enum_next(days, d1)) ->
+constraint forall (d1 in days where d1 < max(days)) (
     let { days: d2 = enum_next(days, d1);
           var set of courses: c1 = day2courses[d1];
           var set of courses: c2 = day2courses[d2]; }
@@ -82,18 +121,6 @@ constraint forall (d1 in days) (
             follows[c] = follows[c] union (c2 intersect start2courses[d2])
         )
 );
-
-% build trajectories
-% a trajectory is a set containing:
-% - course c1 starting on day 1
-% - each c2 in follows[c1] makes a new trajectory
-% - similarly each c_n+1 in follows[c_n] makes a new trajectory
-% that is, the trajectories branch out: each new course in follows makes a new trajectory
-
-
-
-
-
 
 % a person MUSTed a course
 % they must be assigned to this course
@@ -161,8 +188,8 @@ constraint forall (d1 in days, d2 in days) (
     %    ["\(c): \(sum([1 | p in people where c in people2courses[p]]))\n" | c in courses] ++
        % print schedule one day per line
 output ["\(d): \([schedule[d, h] | h in halls])\n" | d in days] ++
-    %    ["\(i) -> \(follows[i])\n" | i in index_set(follows)] ++
-       ["\(trajectories)\n\n"] ++
-       ["\(course2halls)\n\n"] ++
-       ["\(day2courses)\n\n"];
+       ["Trajectory \(i) -> \(trajectories_materialized[i])\n" | i in index_set(trajectories_materialized)] ++
+    %    ["Adj \(c1): \([trajectories[c1, c2] | c2 in courses])\n" | c1 in courses] ++
+    %    ["Follows \(c) -> \(follows[c])\n" | c in index_set(follows)] ++
+       ["Fail \(fail)"];
     %    ["negscore: \(negscore)"];
